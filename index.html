@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>木星スイングバイ シミュレータ</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>木星スイングバイ シミュレータ</h1>
+        </header>
+
+        <main class="main-content">
+            <div class="simulation-section">
+                <div class="canvas-container">
+                    <canvas id="gameCanvas" width="1000" height="600"></canvas>
+                    <div class="info-panel">
+                        <div class="status-info">
+                            <p>現在の速さ: <span id="currentSpeed">0.00</span> km/s</p>
+                        </div>
+                        <div class="actions">
+                            <div class="button-group">
+                                <button id="startButton" disabled>開始</button>
+                                <button id="resetButton">リセット</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="graph-section">
+                    <div class="graph-header">
+                        <h2>速度グラフ</h2>
+                    </div>
+                    <div class="graph-container">
+                        <canvas id="speedGraphCanvas" width="600" height="300"></canvas>
+                    </div>
+                </div>
+
+                <div class="evaluation-section">
+
+                    <div id="resultDisplay" class="certificate-body">衛星を打ち込む位置と方向を設定してください。</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
