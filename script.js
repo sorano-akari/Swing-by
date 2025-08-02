@@ -67,7 +67,7 @@ class Vector {
 // オブジェクトの初期状態
 // =================================================================
 const initialJupiter = {
-    position: new Vector(0, SIMULATION_REGION_HEIGHT_KM / 2), // 上部中央に寄せる
+    position: new Vector(0, SIMULATION_REGION_HEIGHT_KM / 2 * 0.95), // 上部中央に寄せる
     velocity: new Vector(0, -13.07), // 木星の公転速度に近づける (km/s)
     mass: JUPITER_MASS,
     radius: 69911 // km
