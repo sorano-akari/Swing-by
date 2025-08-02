@@ -67,7 +67,7 @@ class Vector {
 // オブジェクトの初期状態
 // =================================================================
 const initialJupiter = {
-    position: new Vector(0, SIMULATION_REGION_HEIGHT_KM / 2 * 0.9), // 上部中央に寄せる
+    position: new Vector(0, SIMULATION_REGION_HEIGHT_KM / 2), // 上部中央に寄せる
     velocity: new Vector(0, -13.07), // 木星の公転速度に近づける (km/s)
     mass: JUPITER_MASS,
     radius: 69911 // km
@@ -284,11 +284,15 @@ function endGame() {
         return;
     }
 
-    // 新しい脱出判定
-    // 脱出速度を計算
+    // 木星から見た人工衛星の相対速度を計算
+    const relativeVelocity = satellite.velocity.subtract(jupiter.velocity);
+    const relativeSpeed = relativeVelocity.magnitude();
+
+    // 脱出速度を計算（距離は木星と衛星間の相対的なもの）
+    distanceToJupiter = jupiter.position.subtract(satellite.position).magnitude();
     const escapeVelocity = Math.sqrt((2 * G * jupiter.mass) / distanceToJupiter);
 
-    if (speed > escapeVelocity) {
+    if (relativeSpeed > escapeVelocity) {
         // 脱出成功
         const grade = evaluatePerformance(speed);
         resultDisplay.textContent = `ミッション完了！最終速さ: ${speed.toFixed(2)} km/s。木星の脱出速度: ${escapeVelocity.toFixed(2)} km/s（成績: ${grade}）`;
