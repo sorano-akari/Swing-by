@@ -438,29 +438,41 @@ window.addEventListener('load', () => {
 
 function drawGraph() {
     graphCtx.clearRect(0, 0, GRAPH_WIDTH, GRAPH_HEIGHT);
-
-    // データがなければ戻る
     if (speedData.length < 2) return;
 
-    // データ範囲取得（ピークホールド）
+    // データ範囲取得
     let minTime = speedData[0].time;
-    let maxTime = speedData[0].time;
-    let minSpeed = speedData[0].speed;
-    let maxSpeed = speedData[0].speed;
-    for (let i = 1; i < speedData.length; i++) {
-        if (speedData[i].time < minTime) minTime = speedData[i].time;
-        if (speedData[i].time > maxTime) maxTime = speedData[i].time;
-        if (speedData[i].speed < minSpeed) minSpeed = speedData[i].speed;
-        if (speedData[i].speed > maxSpeed) maxSpeed = speedData[i].speed;
+    let maxTime = speedData[speedData.length - 1].time; // 最後に変更した箇所
+    let minSpeed = 0;
+    let maxSpeed = 10;
+    for (let i = 0; i < speedData.length; i++) {
+        if (speedData[i].speed > maxSpeed) {
+            maxSpeed = speedData[i].speed;
+        }
     }
-    // 余白を少し持たせる
-    const timeMargin = (maxTime - minTime) * 0.05 || 1;
-    const speedMargin = (maxSpeed - minSpeed) * 0.1 || 1;
-    minTime -= timeMargin;
-    maxTime += timeMargin;
-    minSpeed = Math.max(0, minSpeed - speedMargin);
-    maxSpeed += speedMargin;
+    maxSpeed = Math.ceil(maxSpeed / 5) * 5;
+    if (maxSpeed < 10) maxSpeed = 10;
+    const timeRange = maxTime - minTime;
+    
+    // ----------------------------------------
+    // ▼ ここから横軸の描画ロジックを置き換える
+    // ----------------------------------------
+    let timeLabel, timeDivisor;
 
+    if (timeRange > 240 * 60 * 60) { // 240時間 = 10日
+        timeLabel = '時間 [日]';
+        timeDivisor = 24 * 60 * 60;
+    } else if (timeRange > 60 * 60) { // 60分 = 1時間
+        timeLabel = '時間 [時間]';
+        timeDivisor = 60 * 60;
+    } else if (timeRange > 60) { // 60秒 = 1分
+        timeLabel = '時間 [分]';
+        timeDivisor = 60;
+    } else {
+        timeLabel = '時間 [秒]';
+        timeDivisor = 1;
+    }
+    
     // 軸の描画
     graphCtx.strokeStyle = 'white';
     graphCtx.lineWidth = 1;
@@ -482,14 +494,12 @@ function drawGraph() {
         const speed = minSpeed + (maxSpeed - minSpeed) * (i / yTicks);
         const y = GRAPH_HEIGHT - 30 - ((speed - minSpeed) / (maxSpeed - minSpeed)) * (GRAPH_HEIGHT - 40);
         graphCtx.fillText(speed.toFixed(2), 45, y);
-        // 補助線
         graphCtx.strokeStyle = 'rgba(255,255,255,0.08)';
         graphCtx.beginPath();
         graphCtx.moveTo(50, y);
         graphCtx.lineTo(GRAPH_WIDTH - 10, y);
         graphCtx.stroke();
     }
-    // 縦軸ラベル
     graphCtx.save();
     graphCtx.translate(18, 30);
     graphCtx.rotate(-Math.PI / 2);
@@ -503,26 +513,25 @@ function drawGraph() {
     graphCtx.textAlign = 'center';
     graphCtx.textBaseline = 'top';
     for (let i = 0; i <= xTicks; i++) {
-        const t = minTime + (maxTime - minTime) * (i / xTicks);
-        const x = 50 + ((t - minTime) / (maxTime - minTime)) * (GRAPH_WIDTH - 60);
-        graphCtx.fillText(t.toFixed(0), x, GRAPH_HEIGHT - 25);
-        // 補助線
+        const t = minTime + (timeRange * (i / xTicks));
+        const x = 50 + ((t - minTime) / timeRange) * (GRAPH_WIDTH - 60);
+        graphCtx.fillText((t / timeDivisor).toFixed(1), x, GRAPH_HEIGHT - 25);
         graphCtx.strokeStyle = 'rgba(255,255,255,0.08)';
         graphCtx.beginPath();
         graphCtx.moveTo(x, 10);
         graphCtx.lineTo(x, GRAPH_HEIGHT - 30);
         graphCtx.stroke();
     }
-    // 横軸ラベル
+    // 横軸ラベルの表示
     graphCtx.textAlign = 'right';
     graphCtx.textBaseline = 'bottom';
-    graphCtx.fillText('時間 [秒]', GRAPH_WIDTH - 12, GRAPH_HEIGHT - 32);
+    graphCtx.fillText(timeLabel, GRAPH_WIDTH - 12, GRAPH_HEIGHT - 32);
 
     // グラフ描画
     graphCtx.strokeStyle = 'lime';
     graphCtx.beginPath();
     for (let i = 0; i < speedData.length; i++) {
-        const x = 50 + ((speedData[i].time - minTime) / (maxTime - minTime)) * (GRAPH_WIDTH - 60);
+        const x = 50 + ((speedData[i].time - minTime) / timeRange) * (GRAPH_WIDTH - 60);
         const y = GRAPH_HEIGHT - 30 - ((speedData[i].speed - minSpeed) / (maxSpeed - minSpeed)) * (GRAPH_HEIGHT - 40);
         if (i === 0) {
             graphCtx.moveTo(x, y);
