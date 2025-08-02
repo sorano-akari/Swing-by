@@ -276,30 +276,33 @@ function endGame() {
     startButton.disabled = true;
     resetButton.disabled = false;
 
-    const speed = satellite.velocity.magnitude();
-    const distanceToJupiter = jupiter.position.subtract(satellite.position).magnitude();
+    // シミュレーション空間に対する衛星の絶対速度
+    const absoluteSpeed = satellite.velocity.magnitude();
 
-    if (speed === 0) {
+    if (absoluteSpeed === 0) {
         resultDisplay.textContent = 'ミッション失敗！木星に墜落しました（成績: F）';
         return;
     }
 
-    // 木星から見た人工衛星の相対速度を計算
+    // --- ここから修正された脱出判定ロジック ---
+
+    // 木星に対する人工衛星の相対速度を計算
     const relativeVelocity = satellite.velocity.subtract(jupiter.velocity);
     const relativeSpeed = relativeVelocity.magnitude();
 
     // 脱出速度を計算（距離は木星と衛星間の相対的なもの）
-    distanceToJupiter = jupiter.position.subtract(satellite.position).magnitude();
+    const distanceToJupiter = jupiter.position.subtract(satellite.position).magnitude();
     const escapeVelocity = Math.sqrt((2 * G * jupiter.mass) / distanceToJupiter);
 
+    // 脱出判定
+    // 衛星の相対速度が脱出速度を上回っているか
     if (relativeSpeed > escapeVelocity) {
-        // 脱出成功
-        const grade = evaluatePerformance(speed);
-        resultDisplay.textContent = `ミッション完了！最終速さ: ${speed.toFixed(2)} km/s。木星の脱出速度: ${escapeVelocity.toFixed(2)} km/s（成績: ${grade}）`;
+        const grade = evaluatePerformance(absoluteSpeed);
+        resultDisplay.textContent = `ミッション完了！最終速さ: ${absoluteSpeed.toFixed(2)} km/s。木星からの脱出に成功しました！（成績: ${grade}）`;
     } else {
-        // 脱出失敗
         resultDisplay.textContent = '脱出速度に達しませんでした。木星の重力に捕らえられます。（成績: F）';
     }
+    // --- 修正された脱出判定ロジックここまで ---
 }
 
 function evaluatePerformance(speed) {
