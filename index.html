@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=600, initial-scale=1.0">
     <title>木星スイングバイ シミュレータ</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -15,18 +15,10 @@
         <main class="main-content">
             <div class="simulation-section">
                 <div class="canvas-container">
-                    <canvas id="gameCanvas" width="1000" height="600"></canvas>
-                    <div class="info-panel">
-                        <div class="status-info">
-                            <p>現在の速さ: <span id="currentSpeed">0.00</span> km/s</p>
-                        </div>
-                        <div class="actions">
-                            <div class="button-group">
-                                <button id="startButton" disabled>開始</button>
-                                <button id="resetButton">リセット</button>
-                            </div>
-                        </div>
-                    </div>
+                    <canvas id="gameCanvas" width="600" height="600"></canvas>
+<div class="info-panel-top">
+    <span>現在の速さ: <span id="currentSpeed">0.00</span> km/s</span>
+</div>
                 </div>
             </div>
 
@@ -40,14 +32,18 @@
                     </div>
                 </div>
 
-                <div class="evaluation-section">
-
-                    <div id="resultDisplay" class="certificate-body">衛星を打ち込む位置と方向を設定してください。</div>
-                </div>
+<div class="evaluation-section">
+    <div id="resultDisplay" class="certificate-body">
+<b>人工衛星を木星とのスイングバイで初速の10 km/sから20 km/s以上に加速しよう</b><br><br>計算領域境界付近をクリックしてドラッグすることで、<br>衛星を打ち込む位置と方向を設定し「開始」ボタンを押してください。<br>
+    </div>
+    <div class="evaluation-actions">
+        <button id="startButton" disabled>開始</button>
+        <button id="resetButton">リセット</button>
+    </div>
+</div>
             </div>
         </main>
     </div>
-
     <script src="script.js"></script>
 </body>
 </html>
