@@ -11,17 +11,19 @@ const CANVAS_HEIGHT = canvas.height;
 const GRAPH_WIDTH = speedGraphCanvas.width;
 const GRAPH_HEIGHT = speedGraphCanvas.height;
 
-const JUPITER_ORBIT_RADIUS_KM = 778000000;
-const SIMULATION_REGION_WIDTH_KM = JUPITER_ORBIT_RADIUS_KM / 10;
-const SIMULATION_REGION_HEIGHT_KM = (SIMULATION_REGION_WIDTH_KM / CANVAS_WIDTH) * CANVAS_HEIGHT;
+// 木星の軌道半径に基づくシミュレーションスケール
+//const JUPITER_ORBIT_RADIUS_KM = 778000000;
+const SIMULATION_REGION_WIDTH_KM = 50000000; 
+const SIMULATION_REGION_HEIGHT_KM = 50000000;
 const SCALE_FACTOR_KM_PER_PX = SIMULATION_REGION_WIDTH_KM / CANVAS_WIDTH;
 
-const G = 6.67430e-20;
-const JUPITER_MASS = 1.898e27;
-const SATELLITE_MASS = 722;
+const G = 6.67430e-20; // km^3 / kg / s^2
+const JUPITER_MASS = 1.898e27; // kg
+const SATELLITE_MASS = 722; // kg
 
-const SIMULATION_DURATION_SEC = 109405800;
-const REAL_TIME_DURATION_SEC = 60;
+// 全体30秒に収まるように
+const SIMULATION_DURATION_SEC = 31536000; // 1年 (秒)
+const REAL_TIME_DURATION_SEC = 30;
 const TIME_SCALE_FACTOR = SIMULATION_DURATION_SEC / REAL_TIME_DURATION_SEC;
 const baseTimeStep = TIME_SCALE_FACTOR / 60;
 
@@ -42,7 +44,7 @@ let MAX_SPEED_Y_AXIS = 10;
 const startButton = document.getElementById('startButton');
 const resetButton = document.getElementById('resetButton');
 const currentSpeedSpan = document.getElementById('currentSpeed');
-const resultDisplay = document.getElementById('resultDisplay'); // IDで取得するように修正
+const resultDisplay = document.getElementById('resultDisplay');
 
 // =================================================================
 // ベクトルクラス
@@ -61,56 +63,49 @@ class Vector {
         return mag > 0 ? new Vector(this.x / mag, this.y / mag) : new Vector(0, 0);
     }
 }
-
 // =================================================================
 // オブジェクトの初期状態
 // =================================================================
 const initialJupiter = {
-    position: new Vector(0, SIMULATION_REGION_HEIGHT_KM / 2),
-    velocity: new Vector(0, -5),
+    position: new Vector(0, SIMULATION_REGION_HEIGHT_KM / 2), // 上部中央に寄せる
+    velocity: new Vector(0, -13.07), // 木星の公転速度に近づける (km/s)
     mass: JUPITER_MASS,
-    radius: 69911
+    radius: 69911 // km
 };
 
 const initialSatellite = {
     position: new Vector(0, 0),
     velocity: new Vector(0, 0),
     mass: SATELLITE_MASS,
-    radius: 300
+    radius: 300 // km (視覚用)
 };
 
 let jupiter = { ...initialJupiter };
 let satellite = { ...initialSatellite };
 
 // =================================================================
-// 座標変換と描画
+// 座標変換関数
 // =================================================================
 function toPixelX(xKm) {
-    return (xKm / SCALE_FACTOR_KM_PER_PX) + (CANVAS_WIDTH / 2);
+    return Math.round((xKm / SCALE_FACTOR_KM_PER_PX) + CANVAS_WIDTH / 2);
 }
-
 function toPixelY(yKm) {
-    return (CANVAS_HEIGHT / 2) - (yKm / SCALE_FACTOR_KM_PER_PX);
+    return Math.round(CANVAS_HEIGHT / 2 - (yKm / SCALE_FACTOR_KM_PER_PX));
 }
-
 function toKmX(xPx) {
     return (xPx - CANVAS_WIDTH / 2) * SCALE_FACTOR_KM_PER_PX;
 }
-
 function toKmY(yPx) {
     return (CANVAS_HEIGHT / 2 - yPx) * SCALE_FACTOR_KM_PER_PX;
 }
 
+// =================================================================
+// 描画関数
+// =================================================================
 function drawObject(obj, color) {
     const x = toPixelX(obj.position.x);
     const y = toPixelY(obj.position.y);
-    let radius;
-
-    if (obj === jupiter) {
-        radius = 10;
-    } else {
-        radius = 5;
-    }
+    const radius = (obj === jupiter) ? 10 : 5;
 
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, 2 * Math.PI);
@@ -129,19 +124,28 @@ function drawTrail() {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.lineWidth = 1;
     ctx.stroke();
+        const dotInterval = 15; // ドットを描画する間隔 (フレーム数)
+    ctx.fillStyle = 'white';
+    for (let i = 0; i < satelliteTrail.length; i += dotInterval) {
+        const point = satelliteTrail[i];
+        const x = toPixelX(point.x);
+        const y = toPixelY(point.y);
+        ctx.beginPath();
+        ctx.arc(x, y, 2, 0, 2 * Math.PI); // 半径2の白いドットを描画
+        ctx.fill();
+    }
 }
 
 function drawAxes() {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
     ctx.lineWidth = 1;
 
-    // Y軸を計算領域の左右中央に描画
+    // 原点軸（画面中央）
     ctx.beginPath();
     ctx.moveTo(toPixelX(0), 0);
     ctx.lineTo(toPixelX(0), CANVAS_HEIGHT);
     ctx.stroke();
 
-    // X軸を計算領域の上下中央に描画
     ctx.beginPath();
     ctx.moveTo(0, toPixelY(0));
     ctx.lineTo(CANVAS_WIDTH, toPixelY(0));
@@ -154,36 +158,34 @@ function drawTicksAndLabels() {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
 
-    const tickIntervalKm_x = SIMULATION_REGION_WIDTH_KM / 8;
-    const tickIntervalKm_y = SIMULATION_REGION_HEIGHT_KM / 8;
+    const tickIntervalKmX = SIMULATION_REGION_WIDTH_KM / 8;
+    const tickIntervalKmY = SIMULATION_REGION_HEIGHT_KM / 8;
 
-    // X軸の目盛りとラベル
-    const xAxisYPx = toPixelY(0);
+    const y0 = toPixelY(0);
     for (let i = -4; i <= 4; i++) {
-        const xKm = i * tickIntervalKm_x;
+        const xKm = i * tickIntervalKmX;
         const xPx = toPixelX(xKm);
         ctx.beginPath();
-        ctx.moveTo(xPx, xAxisYPx - 5);
-        ctx.lineTo(xPx, xAxisYPx + 5);
+        ctx.moveTo(xPx, y0 - 5);
+        ctx.lineTo(xPx, y0 + 5);
         ctx.stroke();
         if (i !== 0) {
-            ctx.fillText(`${(xKm/1000000).toFixed(2)} Gm`, xPx, xAxisYPx + 8);
+            ctx.fillText(`${(xKm / 1e6).toFixed(1)} Gm`, xPx, y0 + 8);
         }
     }
 
-    // Y軸の目盛りとラベル
-    const yAxisXPx = toPixelX(0);
+    const x0 = toPixelX(0);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     for (let i = -4; i <= 4; i++) {
-        const yKm = i * tickIntervalKm_y;
+        const yKm = i * tickIntervalKmY;
         const yPx = toPixelY(yKm);
         ctx.beginPath();
-        ctx.moveTo(yAxisXPx - 5, yPx);
-        ctx.lineTo(yAxisXPx + 5, yPx);
+        ctx.moveTo(x0 - 5, yPx);
+        ctx.lineTo(x0 + 5, yPx);
         ctx.stroke();
         if (i !== 0) {
-            ctx.fillText(`${(yKm/1000000).toFixed(2)} Gm`, yAxisXPx + 8, yPx);
+            ctx.fillText(`${(yKm / 1e6).toFixed(1)} Gm`, x0 + 8, yPx);
         }
     }
 }
@@ -194,163 +196,78 @@ function draw() {
     drawTicksAndLabels();
     drawObject(jupiter, 'orange');
     drawTrail();
-    
     if (isSatelliteSet) {
         drawObject(satellite, 'white');
     }
 }
-
-function drawGraph() {
-    graphCtx.clearRect(0, 0, GRAPH_WIDTH, GRAPH_HEIGHT);
-    
-    graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-    graphCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    graphCtx.font = '10px Arial';
-    graphCtx.textAlign = 'left';
-    graphCtx.textBaseline = 'top';
-    
-    const margin = 30;
-    const graphWidth = GRAPH_WIDTH - margin * 2;
-    const graphHeight = GRAPH_HEIGHT - margin * 2;
-
-    // Y軸
-    graphCtx.beginPath();
-    graphCtx.moveTo(margin, margin);
-    graphCtx.lineTo(margin, GRAPH_HEIGHT - margin);
-    graphCtx.stroke();
-    graphCtx.fillText('速度 (km/s)', margin + 5, 5);
-    
-    const yTickInterval = 5;
-    for (let s = 0; s <= MAX_SPEED_Y_AXIS; s += yTickInterval) {
-        const y = GRAPH_HEIGHT - margin - (s / MAX_SPEED_Y_AXIS) * graphHeight;
-        graphCtx.beginPath();
-        graphCtx.moveTo(margin - 5, y);
-        graphCtx.lineTo(margin + 5, y);
-        graphCtx.stroke();
-        graphCtx.fillText(s.toFixed(0), margin - 25, y + 3);
-    }
-    
-    // X軸
-    graphCtx.beginPath();
-    graphCtx.moveTo(margin, GRAPH_HEIGHT - margin);
-    graphCtx.lineTo(GRAPH_WIDTH - margin, GRAPH_HEIGHT - margin);
-    graphCtx.stroke();
-
-    if (speedData.length > 1) {
-        const firstTime = speedData[0].time;
-        const lastTime = speedData[speedData.length - 1].time;
-        const totalDisplayedTime = lastTime - firstTime;
-
-        let timeUnit = '秒';
-        let timeScale = 1;
-        let tickInterval = 5;
-        
-        if (totalDisplayedTime >= 31536000) {
-            timeUnit = '年';
-            timeScale = 31536000;
-            tickInterval = 1;
-        } else if (totalDisplayedTime >= 2592000) {
-            timeUnit = 'ヶ月';
-            timeScale = 2592000;
-            tickInterval = 1;
-        } else if (totalDisplayedTime >= 86400) {
-            timeUnit = '日';
-            timeScale = 86400;
-            tickInterval = 1;
-        } else if (totalDisplayedTime >= 3600) {
-            timeUnit = '時間';
-            timeScale = 3600;
-            tickInterval = 10;
-        } else if (totalDisplayedTime >= 60) {
-            timeUnit = '分';
-            timeScale = 60;
-            tickInterval = 5;
-        }
-        
-        graphCtx.fillText(`時間 (${timeUnit})`, GRAPH_WIDTH - margin - 50, GRAPH_HEIGHT - margin + 5);
-
-        graphCtx.beginPath();
-        graphCtx.strokeStyle = 'cyan';
-        graphCtx.lineWidth = 1;
-
-        const xStep = graphWidth / totalDisplayedTime;
-        const yStep = graphHeight / MAX_SPEED_Y_AXIS;
-        
-        graphCtx.moveTo(margin, GRAPH_HEIGHT - margin - speedData[0].speed * yStep);
-
-        for (let i = 1; i < speedData.length; i++) {
-            const time = speedData[i].time - firstTime;
-            const x = margin + (time * xStep);
-            const y = GRAPH_HEIGHT - margin - speedData[i].speed * yStep;
-            graphCtx.lineTo(x, y);
-        }
-        graphCtx.stroke();
-        
-        for (let t = firstTime; t <= lastTime; t += tickInterval * timeScale) {
-            const timeOffset = t - firstTime;
-            const x = margin + (timeOffset * xStep);
-            if (x > margin) {
-                graphCtx.beginPath();
-                graphCtx.moveTo(x, GRAPH_HEIGHT - margin);
-                graphCtx.lineTo(x, GRAPH_HEIGHT - margin + 5);
-                graphCtx.stroke();
-                graphCtx.fillText((t / timeScale).toFixed(1), x - 10, GRAPH_HEIGHT - margin + 15);
-            }
-        }
-    }
-}
-
 // =================================================================
-// 物理計算とゲームロジック
+// 物理計算とゲームループ
 // =================================================================
 function update(totalDt) {
-    const closeDistanceThreshold = SIMULATION_REGION_WIDTH_KM / 5;
+    const closeThreshold = SIMULATION_REGION_WIDTH_KM / 5;
     const distanceToJupiter = jupiter.position.subtract(satellite.position).magnitude();
-    
+
     let subSteps = 1;
-    if (distanceToJupiter < closeDistanceThreshold) {
-        subSteps = Math.ceil(closeDistanceThreshold / distanceToJupiter);
-        if (subSteps > 50) {
-            subSteps = 50;
-        }
+    if (distanceToJupiter < closeThreshold) {
+        subSteps = Math.min(50, Math.ceil(closeThreshold / distanceToJupiter));
     }
-    const subDt = totalDt / subSteps;
+    const dt = totalDt / subSteps;
 
     for (let i = 0; i < subSteps; i++) {
-        const distanceVector = jupiter.position.subtract(satellite.position);
-        const distance = distanceVector.magnitude();
+        const diff = jupiter.position.subtract(satellite.position);
+        const r = diff.magnitude();
 
-        if (distance < jupiter.radius) {
-            satellite.velocity = new Vector(0, 0);
+        if (r < jupiter.radius) {
+            satellite.velocity = new Vector(0, 0); // 落下した
             return;
         }
 
-        const forceMagnitude = (G * jupiter.mass * satellite.mass) / (distance * distance);
-        const forceDirection = distanceVector.normalize();
-        const force = forceDirection.multiply(forceMagnitude);
-        const acceleration = force.multiply(1 / satellite.mass);
+        const F = (G * jupiter.mass * satellite.mass) / (r * r);
+        const acc = diff.normalize().multiply(F / satellite.mass);
+        satellite.velocity = satellite.velocity.add(acc.multiply(dt));
+        satellite.position = satellite.position.add(satellite.velocity.multiply(dt));
+        jupiter.position = jupiter.position.add(jupiter.velocity.multiply(dt));
+    }
+}
 
-        satellite.velocity = satellite.velocity.add(acceleration.multiply(subDt));
-        satellite.position = satellite.position.add(satellite.velocity.multiply(subDt));
+function gameLoop() {
+    if (!isGameRunning) return;
 
-        jupiter.position = jupiter.position.add(jupiter.velocity.multiply(subDt));
+    const delta = baseTimeStep;
+    update(delta);
+    simulationTime += delta;
+
+    satelliteTrail.push({ x: satellite.position.x, y: satellite.position.y });
+    if (satelliteTrail.length > TRAIL_MAX_LENGTH) {
+        satelliteTrail.shift();
+    }
+
+    const speed = satellite.velocity.magnitude();
+    speedData.push({ time: simulationTime, speed });
+    if (speedData.length > GRAPH_DATA_LENGTH) {
+        speedData.shift();
+    }
+
+    if (speed > MAX_SPEED_Y_AXIS) {
+        MAX_SPEED_Y_AXIS = Math.ceil(speed / 5) * 5;
+    }
+
+    draw();
+    drawGraph();
+    currentSpeedSpan.textContent = speed.toFixed(2);
+
+    if (isSatelliteOutOfBounds() || speed === 0) {
+        endGame();
+    } else {
+        animationId = requestAnimationFrame(gameLoop);
     }
 }
 
 function isSatelliteOutOfBounds() {
-    const margin = 50;
+    const margin = 100;
     const x = toPixelX(satellite.position.x);
     const y = toPixelY(satellite.position.y);
     return x < -margin || x > CANVAS_WIDTH + margin || y < -margin || y > CANVAS_HEIGHT + margin;
-}
-
-function evaluatePerformance() {
-    const finalSpeed = satellite.velocity.magnitude();
-    if (finalSpeed >= 20) return { grade: 'S', speed: finalSpeed.toFixed(2) };
-    if (finalSpeed >= 18) return { grade: 'A', speed: finalSpeed.toFixed(2) };
-    if (finalSpeed >= 16) return { grade: 'B', speed: finalSpeed.toFixed(2) };
-    if (finalSpeed >= 10) return { grade: 'C', speed: finalSpeed.toFixed(2) };
-    return { grade: 'F', speed: finalSpeed.toFixed(2) };
 }
 
 function endGame() {
@@ -359,60 +276,42 @@ function endGame() {
     startButton.disabled = true;
     resetButton.disabled = false;
 
-    // 「評価」ヘッダーはHTML側にあるので、本文のみを挿入
-    if (satellite.velocity.magnitude() === 0) {
-        resultDisplay.innerHTML = 'ミッション失敗！木星に墜落しました。';
-    } else {
-        const result = evaluatePerformance();
-        resultDisplay.innerHTML = `ミッション完了！<br>最終速さ: ${result.speed} km/s. 成績: ${result.grade}`;
-    }
-}
+    const speed = satellite.velocity.magnitude();
+    const distanceToJupiter = jupiter.position.subtract(satellite.position).magnitude();
 
-function gameLoop() {
-    if (!isGameRunning) {
+    if (speed === 0) {
+        resultDisplay.textContent = 'ミッション失敗！木星に墜落しました（成績: F）';
         return;
     }
 
-    const deltaTime = baseTimeStep;
-    update(deltaTime);
-    simulationTime += baseTimeStep;
-    
-    satelliteTrail.push({ x: satellite.position.x, y: satellite.position.y });
-    if (satelliteTrail.length > TRAIL_MAX_LENGTH) {
-        satelliteTrail.shift();
-    }
-    
-    const currentSpeed = satellite.velocity.magnitude();
-    speedData.push({ time: simulationTime, speed: currentSpeed });
-    if (speedData.length > GRAPH_DATA_LENGTH) {
-        speedData.shift();
-    }
+    // 新しい脱出判定
+    // 脱出速度を計算
+    const escapeVelocity = Math.sqrt((2 * G * jupiter.mass) / distanceToJupiter);
 
-    if (currentSpeed > MAX_SPEED_Y_AXIS) {
-        MAX_SPEED_Y_AXIS = Math.ceil(currentSpeed / 5) * 5;
-    }
-
-    draw();
-    drawGraph();
-
-    currentSpeedSpan.textContent = currentSpeed.toFixed(2);
-
-    if (isSatelliteOutOfBounds() || satellite.velocity.magnitude() === 0) {
-        endGame();
+    if (speed > escapeVelocity) {
+        // 脱出成功
+        const grade = evaluatePerformance(speed);
+        resultDisplay.textContent = `ミッション完了！最終速さ: ${speed.toFixed(2)} km/s。木星の脱出速度: ${escapeVelocity.toFixed(2)} km/s（成績: ${grade}）`;
     } else {
-        animationId = requestAnimationFrame(gameLoop);
+        // 脱出失敗
+        resultDisplay.textContent = '脱出速度に達しませんでした。木星の重力に捕らえられます。（成績: F）';
     }
 }
 
+function evaluatePerformance(speed) {
+    if (speed >= 20) return 'S';
+    if (speed >= 18) return 'A';
+    if (speed >= 16) return 'B';
+    if (speed >= 14) return 'C';
+    return 'F';
+}
 // =================================================================
-// ユーザーインタラクション
+// ユーザー操作イベント
 // =================================================================
-
 function getMousePositionInCanvas(e) {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-
     return {
         x: (e.clientX - rect.left) * scaleX,
         y: (e.clientY - rect.top) * scaleY
@@ -421,10 +320,8 @@ function getMousePositionInCanvas(e) {
 
 canvas.addEventListener('mousedown', (e) => {
     if (isGameRunning || isSatelliteSet) return;
-
     const { x, y } = getMousePositionInCanvas(e);
     const edge = getMouseEdge(x, y);
-
     if (edge) {
         isDragging = true;
         satelliteInitialPosition = getPositionOnEdge(x, y, edge);
@@ -434,26 +331,24 @@ canvas.addEventListener('mousedown', (e) => {
 
 canvas.addEventListener('mousemove', (e) => {
     if (isGameRunning) return;
-    
     draw();
     drawGraph();
 
     const { x, y } = getMousePositionInCanvas(e);
-    
+
     if (isDragging) {
         drawObject({ position: satelliteInitialPosition }, 'gray');
-
         ctx.beginPath();
         ctx.moveTo(toPixelX(satelliteInitialPosition.x), toPixelY(satelliteInitialPosition.y));
         ctx.lineTo(x, y);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
         ctx.lineWidth = 2;
         ctx.stroke();
     } else if (!isSatelliteSet) {
         const edge = getMouseEdge(x, y);
         if (edge) {
-            const previewPosition = getPositionOnEdge(x, y, edge);
-            drawObject({ position: previewPosition }, 'gray');
+            const preview = getPositionOnEdge(x, y, edge);
+            drawObject({ position: preview }, 'gray');
         }
     }
 });
@@ -461,14 +356,12 @@ canvas.addEventListener('mousemove', (e) => {
 canvas.addEventListener('mouseup', (e) => {
     if (!isDragging) return;
     isDragging = false;
-    
     const { x, y } = getMousePositionInCanvas(e);
-    const currentPosition = new Vector(toKmX(x), toKmY(y));
-    const directionVector = currentPosition.subtract(satelliteInitialPosition);
+    const current = new Vector(toKmX(x), toKmY(y));
+    const dir = current.subtract(satelliteInitialPosition);
 
-    if (directionVector.magnitude() > 0) {
-        // 速度は常に10 km/sに固定する
-        satellite.velocity = directionVector.normalize().multiply(10);
+    if (dir.magnitude() > 0) {
+        satellite.velocity = dir.normalize().multiply(10);
         isSatelliteSet = true;
         startButton.disabled = false;
     } else {
@@ -482,7 +375,6 @@ canvas.addEventListener('mouseup', (e) => {
 
 function getMouseEdge(x, y) {
     const margin = 20;
-
     if (x < margin) return 'left';
     if (x > CANVAS_WIDTH - margin) return 'right';
     if (y < margin) return 'top';
@@ -502,7 +394,7 @@ function getPositionOnEdge(xPx, yPx, edge) {
 }
 
 // =================================================================
-// イベントリスナーの初期設定とリセット
+// ボタンイベントと初期化
 // =================================================================
 startButton.addEventListener('click', () => {
     if (isSatelliteSet && !isGameRunning) {
@@ -511,8 +403,8 @@ startButton.addEventListener('click', () => {
         resetButton.disabled = false;
         resultDisplay.textContent = '';
         speedData = [];
-    	simulationTime = 0;
-    	MAX_SPEED_Y_AXIS = 10;
+        simulationTime = 0;
+        MAX_SPEED_Y_AXIS = 10;
         drawGraph();
         animationId = requestAnimationFrame(gameLoop);
     }
@@ -534,17 +426,8 @@ resetButton.addEventListener('click', () => {
     MAX_SPEED_Y_AXIS = 10;
 
     currentSpeedSpan.textContent = '0.00';
-    // 説明文をHTMLタグを含めずに、より簡潔に
-    resultDisplay.innerHTML = `
-        木星の重力で衛星を加速させるシミュレーションです。<br>
-        **目標**: 初速10 km/sを20 km/s以上に。<br>
-        <br>
-        **操作方法**<br>
-        1. 画面のフチをクリック。<br>
-        2. ドラッグして打ち出し方向を調整。<br>
-        3. 「開始」ボタンでスタート。
-    `;
-    
+    resultDisplay.innerHTML = '<b>人工衛星を木星とのスイングバイで初速の10 km/sから20 km/s以上に加速しよう</b><br><br>計算領域境界付近をクリックしてドラッグすることで、<br>衛星を打ち込む位置と方向を設定し「開始」ボタンを押してください。<br>';
+
     draw();
     drawGraph();
 });
@@ -552,3 +435,100 @@ resetButton.addEventListener('click', () => {
 window.addEventListener('load', () => {
     resetButton.click();
 });
+
+function drawGraph() {
+    graphCtx.clearRect(0, 0, GRAPH_WIDTH, GRAPH_HEIGHT);
+
+    // データがなければ戻る
+    if (speedData.length < 2) return;
+
+    // データ範囲取得（ピークホールド）
+    let minTime = speedData[0].time;
+    let maxTime = speedData[0].time;
+    let minSpeed = speedData[0].speed;
+    let maxSpeed = speedData[0].speed;
+    for (let i = 1; i < speedData.length; i++) {
+        if (speedData[i].time < minTime) minTime = speedData[i].time;
+        if (speedData[i].time > maxTime) maxTime = speedData[i].time;
+        if (speedData[i].speed < minSpeed) minSpeed = speedData[i].speed;
+        if (speedData[i].speed > maxSpeed) maxSpeed = speedData[i].speed;
+    }
+    // 余白を少し持たせる
+    const timeMargin = (maxTime - minTime) * 0.05 || 1;
+    const speedMargin = (maxSpeed - minSpeed) * 0.1 || 1;
+    minTime -= timeMargin;
+    maxTime += timeMargin;
+    minSpeed = Math.max(0, minSpeed - speedMargin);
+    maxSpeed += speedMargin;
+
+    // 軸の描画
+    graphCtx.strokeStyle = 'white';
+    graphCtx.lineWidth = 1;
+    graphCtx.beginPath();
+    graphCtx.moveTo(50, 10);
+    graphCtx.lineTo(50, GRAPH_HEIGHT - 30);
+    graphCtx.lineTo(GRAPH_WIDTH - 10, GRAPH_HEIGHT - 30);
+    graphCtx.stroke();
+
+    // 目盛り・ラベル
+    graphCtx.font = '12px Arial';
+    graphCtx.fillStyle = '#ccc';
+
+    // 縦軸（速度）
+    const yTicks = 5;
+    graphCtx.textAlign = 'right';
+    graphCtx.textBaseline = 'middle';
+    for (let i = 0; i <= yTicks; i++) {
+        const speed = minSpeed + (maxSpeed - minSpeed) * (i / yTicks);
+        const y = GRAPH_HEIGHT - 30 - ((speed - minSpeed) / (maxSpeed - minSpeed)) * (GRAPH_HEIGHT - 40);
+        graphCtx.fillText(speed.toFixed(2), 45, y);
+        // 補助線
+        graphCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+        graphCtx.beginPath();
+        graphCtx.moveTo(50, y);
+        graphCtx.lineTo(GRAPH_WIDTH - 10, y);
+        graphCtx.stroke();
+    }
+    // 縦軸ラベル
+    graphCtx.save();
+    graphCtx.translate(18, 30);
+    graphCtx.rotate(-Math.PI / 2);
+    graphCtx.textAlign = 'center';
+    graphCtx.textBaseline = 'top';
+    graphCtx.fillText('速度 [km/s]', 0, 0);
+    graphCtx.restore();
+
+    // 横軸（時間）
+    const xTicks = 5;
+    graphCtx.textAlign = 'center';
+    graphCtx.textBaseline = 'top';
+    for (let i = 0; i <= xTicks; i++) {
+        const t = minTime + (maxTime - minTime) * (i / xTicks);
+        const x = 50 + ((t - minTime) / (maxTime - minTime)) * (GRAPH_WIDTH - 60);
+        graphCtx.fillText(t.toFixed(0), x, GRAPH_HEIGHT - 25);
+        // 補助線
+        graphCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+        graphCtx.beginPath();
+        graphCtx.moveTo(x, 10);
+        graphCtx.lineTo(x, GRAPH_HEIGHT - 30);
+        graphCtx.stroke();
+    }
+    // 横軸ラベル
+    graphCtx.textAlign = 'right';
+    graphCtx.textBaseline = 'bottom';
+    graphCtx.fillText('時間 [秒]', GRAPH_WIDTH - 12, GRAPH_HEIGHT - 32);
+
+    // グラフ描画
+    graphCtx.strokeStyle = 'lime';
+    graphCtx.beginPath();
+    for (let i = 0; i < speedData.length; i++) {
+        const x = 50 + ((speedData[i].time - minTime) / (maxTime - minTime)) * (GRAPH_WIDTH - 60);
+        const y = GRAPH_HEIGHT - 30 - ((speedData[i].speed - minSpeed) / (maxSpeed - minSpeed)) * (GRAPH_HEIGHT - 40);
+        if (i === 0) {
+            graphCtx.moveTo(x, y);
+        } else {
+            graphCtx.lineTo(x, y);
+        }
+    }
+    graphCtx.stroke();
+}
